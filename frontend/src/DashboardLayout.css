@@ -1,0 +1,312 @@
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&display=swap');
+
+/* ---------- Shell ---------- */
+
+.db-shell {
+  --ink: #0b1220;
+  --ink-deep: #05070f;
+  --paper: #f4efe4;
+  --paper-card: rgba(255, 253, 248, 0.82);
+  --text: #131822;
+  --text-muted: #6b7280;
+  --accent: #14b8a6;
+  --accent-2: #6366f1;
+  --accent-soft: #5eead4;
+  --error: #ef4444;
+  --rule: rgba(15, 23, 42, 0.1);
+  --ring: rgba(20, 184, 166, 0.28);
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  width: 100%;
+  min-height: 100vh;
+  font-family: "Inter", sans-serif;
+  color: var(--text);
+  text-align: left;
+  background:
+    radial-gradient(ellipse at 15% 0%, rgba(20, 184, 166, 0.07), transparent 55%),
+    radial-gradient(ellipse at 100% 100%, rgba(99, 102, 241, 0.06), transparent 55%),
+    var(--paper);
+}
+
+/* ---------- Sidebar ---------- */
+
+.db-sidebar {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  padding: 28px 16px 20px;
+  background: linear-gradient(180deg, var(--ink) 0%, var(--ink-deep) 100%);
+  color: var(--paper);
+}
+
+.db-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px;
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 1.05rem;
+  color: var(--paper);
+}
+
+.db-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.db-link {
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: rgba(244, 239, 228, 0.7);
+  text-decoration: none;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.db-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--paper);
+}
+
+.db-link.active {
+  background: rgba(20, 184, 166, 0.14);
+  color: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.db-link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.db-user {
+  display: grid;
+  gap: 10px;
+  margin-top: auto;
+  padding: 16px 8px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.8rem;
+  color: rgba(244, 239, 228, 0.6);
+  word-break: break-all;
+}
+
+.db-user button {
+  padding: 9px 12px;
+  font-family: "Inter", sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--paper);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.db-user button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--accent);
+}
+
+/* ---------- Main ---------- */
+
+.db-main {
+  position: relative;
+  padding: 48px 48px 64px;
+  overflow: hidden;
+}
+
+.db-main::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(15, 23, 42, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.045) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 78%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 78%);
+  pointer-events: none;
+}
+
+.db-main::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--grain);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.db-main > * {
+  position: relative;
+  z-index: 1;
+}
+
+.db-title {
+  margin: 0 0 10px;
+  font-family: "Source Serif 4", Georgia, serif;
+  font-weight: 600;
+  font-size: 2rem;
+  letter-spacing: -0.015em;
+  color: var(--text);
+}
+
+.db-muted {
+  max-width: 640px;
+  margin: 0 0 32px;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.db-error {
+  max-width: 760px;
+  margin: 0 0 20px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  color: var(--error);
+  background: rgba(239, 68, 68, 0.07);
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  border-radius: 8px;
+}
+
+/* ---------- Card ---------- */
+
+.db-card {
+  position: relative;
+  max-width: 760px;
+  padding: 36px 32px;
+  background: var(--paper-card);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 18px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.8) inset,
+    0 30px 60px -30px rgba(15, 23, 42, 0.35),
+    0 10px 20px -12px rgba(15, 23, 42, 0.15);
+  animation: db-rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.db-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(20, 184, 166, 0.6), transparent);
+  pointer-events: none;
+}
+
+@keyframes db-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- Champs en lecture seule (page Info) ---------- */
+
+.db-fields {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  margin: 0;
+}
+
+.db-fields dt,
+.db-fields dd {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.db-fields > div:last-child > * {
+  border-bottom: none;
+}
+
+.db-fields dt {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  align-self: center;
+}
+
+.db-fields dd {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 500;
+  color: var(--text);
+  word-break: break-word;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 880px) {
+  .db-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .db-sidebar {
+    position: static;
+    height: auto;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .db-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .db-user {
+    margin-top: 0;
+  }
+
+  .db-main {
+    padding: 28px 16px 48px;
+  }
+
+  .db-title {
+    font-size: 1.6rem;
+  }
+
+  .db-card {
+    padding: 24px 20px;
+    border-radius: 14px;
+  }
+
+  .db-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .db-fields dt {
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+
+  .db-fields dd {
+    padding-top: 4px;
+  }
+}
+
+/* ---------- Reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .db-card {
+    animation: none;
+  }
+
+  .db-link,
+  .db-user button {
+    transition: none;
+  }
+}
