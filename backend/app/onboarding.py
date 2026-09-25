@@ -137,6 +137,8 @@ def _merge(patente: PatenteExtraction, rne: RNEExtraction) -> CompanyProfile:
         date_creation=rne.date_creation,
         activite=patente.activite,
         dirigeant=rne.dirigeant,
+        code_tva=patente.code_tva,
+        code_categorie=patente.code_categorie
     )
 
 
@@ -166,7 +168,11 @@ class ConfirmIn(BaseModel):
     date_creation: date | None = None
     activite: str | None = None
     dirigeant: str | None = None
-
+    code_tva: str | None = None          
+    code_categorie: str | None = None    
+    code_tva: str | None = None          
+    code_categorie: str | None = None    
+    
 
 @router.post("/confirm")
 def confirm(data: ConfirmIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):

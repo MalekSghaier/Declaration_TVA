@@ -51,6 +51,24 @@ class PatenteExtraction(BaseModel):
             "Recopie-le TEL QUEL avec ses lettres."
         ),
     )
+    code_tva: str | None = Field(
+        None,
+        description=(
+            "UNE SEULE LETTRE MAJUSCULE, valeur à côté de 'Code TVA' "
+            "(ou 'رمز أقرع' dans la version arabe). "
+            "Généralement 'A', 'B', 'C', 'D' ou 'N'. "
+            "Ne pas confondre avec 'Code Catégorie' (qui est une autre colonne du même tableau)."
+        ),
+    )
+    code_categorie: str | None = Field(
+        None,
+        description=(
+            "UNE SEULE LETTRE MAJUSCULE, valeur à côté de 'Code Catégorie' "
+            "(ou 'رمز الصنف' dans la version arabe). "
+            "Généralement 'M', 'C', 'F', etc. "
+            "Ne pas confondre avec 'Code TVA'."
+        ),
+    )
     adresse: str | None = Field(
         None,
         description=(
@@ -161,3 +179,5 @@ class CompanyProfile(BaseModel):
     date_creation: date | None = None
     activite: str | None = None
     dirigeant: str | None = None
+    code_tva: str | None = None          
+    code_categorie: str | None = None    

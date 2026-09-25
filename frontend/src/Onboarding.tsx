@@ -13,6 +13,8 @@ interface Profile {
   date_creation: string | null;
   activite: string | null;
   dirigeant: string | null;
+  code_tva: string | null;       
+  code_categorie: string | null;
 }
 
 const EMPTY: Profile = {
@@ -24,6 +26,8 @@ const EMPTY: Profile = {
   date_creation: null,
   activite: null,
   dirigeant: null,
+  code_tva: null,
+  code_categorie: null,
 };
 
 type Phase = "select" | "loading" | "review";
@@ -240,6 +244,8 @@ export default function Onboarding() {
               {field("date_creation", "Date de création", "date")}
               {field("activite", "Activité")}
               {field("dirigeant", "Dirigeant")}
+              {field("code_tva", "Code TVA")}
+              {field("code_categorie", "Code catégorie")}
             </div>
 
             {error && <p className="ob-error">{error}</p>}

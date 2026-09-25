@@ -95,59 +95,235 @@ Regles :
 - Une ligne dans lignes_tva par taux de TVA distinct.
 - Distingue bien l'emetteur (vendeur) du client."""
 
+PATENTE_SYSTEM = """Tu extrais les informations d'une carte d'identification fiscale tunisienne (patente).
 
-PATENTE_SYSTEM = """Tu extrais les informations d'une carte d'identification fiscale tunisienne (patente)
-a partir de son texte. La patente est emise par la Direction Generale des Impots avec un template
-standard. Le document est bilingue francais/arabe.
+CONTEXTE
+Toutes les patentes sont emises par la Direction Generale des Impots (Ministere des Finances)
+avec un template STANDARDISE. Tu peux te fier a la structure, pas a des valeurs specifiques.
+Le document est bilingue francais/arabe : les memes informations figurent dans les deux langues.
+Utilise la version francaise quand elle existe ; l'arabe uniquement quand c'est la seule source.
 
-Libelles francais presents sur toutes les patentes (cherche ces chaines exactes) :
-- "Matricule Fiscal"      -> matricule_fiscal
-- "Nom et prenom ou raison sociale" -> raison_sociale
-- "Adresse"               -> adresse
-- "Activite principal"    -> activite
+STRUCTURE DU DOCUMENT (du haut vers le bas)
+1. En-tete administratif : Republique Tunisienne, Ministere des Finances,
+   Structure de Controle des Impots. A IGNORER.
+2. Titre : "Carte d'Identification Fiscale" / "بطاقة التعريف الجبائية".
+3. Mention de regime : "Soumis au regime reel", "Assujetti obligatoire pour toute l'activite".
+4. Tableau a 4 colonnes (dans cet ordre, souvent) :
+   - N° etablissement secondaire  /  رقم الفرع الثانوي
+   - Code Categorie               /  رمز الصنف
+   - Code TVA                     /  رمز الاداء  (parfois orthographie differemment en OCR)
+   - Matricule Fiscal             /  المعرف الجبائي  (parfois : المعرف الحالي)
+5. Bloc identification : Nom et prenom ou raison sociale / Adresse / Activite principal / A compter du.
+6. Bloc activites secondaires (tableau vide ou rempli).
+7. Signatures administratives (Chef de Bureau, Chef de Structure...). A IGNORER.
+8. Pied de page : mentions legales "NB : ...". A IGNORER.
 
-PIEGES :
-- "Code TVA", "Code Categorie", "N° etablissement secondaire" ne sont PAS le matricule fiscal.
-- Le champ "Nom et prenom ou raison sociale" peut etre VIDE sur certaines patentes (personne
-  physique dont le nom figure sur une autre ligne). Si tu ne trouves pas de valeur claire, mets null.
-- La patente comporte un cachet bleu (image) et des zones arabes. Ignore-les.
-- L'adresse figure sur 2-3 lignes consecutives : reconstitue-la en une seule chaine.
+REGLES D'EXTRACTION PAR CHAMP
 
-Regles finales :
+- matricule_fiscal
+  * C'est la valeur de la colonne "Matricule Fiscal" du tableau en haut.
+  * Format : une chaine alphanumerique, souvent 7 chiffres suivis d'UNE lettre majuscule,
+    ou bien 7 chiffres + "/" + une lettre + "/" + une lettre + "/" + 3 chiffres.
+    Le format peut varier : recopie EXACTEMENT la valeur telle qu'elle apparait.
+  * Ne JAMAIS prendre la valeur de "N° etablissement secondaire" (numerique pur, souvent 000).
+  * Ne JAMAIS prendre la valeur de "Code TVA" ni "Code Categorie" (lettres isolees).
+
+- code_tva
+  * Valeur de la colonne "Code TVA" du tableau en haut.
+  * C'est UNE SEULE lettre majuscule (l'alphabet est limite, mais tu ne dois PAS
+    presumer laquelle : extrait celle qui figure reellement dans le document).
+  * Si la colonne est vide, mets null.
+
+- code_categorie
+  * Valeur de la colonne "Code Categorie" du tableau en haut.
+  * C'est UNE SEULE lettre majuscule (different de Code TVA en general, mais pas toujours).
+    Ne presume rien : recopie la lettre reellement presente.
+  * Si la colonne est vide, mets null.
+
+- raison_sociale
+  * Valeur de la ligne "Nom et prenom ou raison sociale".
+  * Peut etre :
+      - une personne morale en majuscules (ex: plusieurs mots en capitales),
+      - une personne physique (Prenom + Nom en casse normale),
+      - VIDE sur certaines patentes. Dans ce cas, mets null.
+  * Recopie telle quelle, sans reformatage.
+
+- adresse
+  * Valeur de la ligne "Adresse".
+  * Sur le document, l'adresse s'etale souvent sur 2 a 3 lignes consecutives.
+    Reconstitue-la en UNE SEULE chaine separee par des virgules.
+  * Inclut le numero de voie, la rue, la ville, le code postal s'il est present.
+  * Si plusieurs adresses apparaissent (siege + etablissement secondaire), garde
+    celle qui est dans le bloc principal "Adresse" (pas les activites secondaires).
+
+- activite
+  * Valeur de la ligne "Activite principal".
+  * C'est une description textuelle du metier (ex: domaine d'activite).
+  * Ignore la ligne "Description" si elle contient du texte technique different.
+  * Ignore "Activites secondaires".
+
+PIEGES A EVITER
+- Ne confonds pas les 4 colonnes du tableau du haut entre elles.
+  Chacune a un role distinct : un numero, deux lettres de code, un identifiant alphanumerique.
+- Ne te fie PAS a l'ordre visuel des cellules en OCR : sur les documents bilingues,
+  la disposition en colonnes peut etre deformee. Repère chaque valeur par son LIBELLE (FR ou AR)
+  plutot que par sa position.
+- Ne concatene jamais deux champs differents dans une meme valeur.
+- Le cachet bleu en bas de page et les zones arabes deformees par l'OCR ne contiennent
+  aucune donnee metier utile.
+
+REGLES FINALES
 - Reponds uniquement selon le schema fourni.
-- N'invente jamais de valeur. Si tu n'es pas certain a 90%, mets null."""
+- N'invente jamais de valeur. Si tu n'es pas certain a 90%, mets null.
+- Preserve la casse et l'orthographe exacte des valeurs extraites."""
+
 
 
 RNE_SYSTEM = """Tu extrais les informations d'un extrait RNE (Registre National des Entreprises) tunisien.
 
-Le RNE est emis par un organisme unique avec un template standard. Tous les extraits partagent :
-- Les MEMES libelles francais : "Denomination sociale", "IDENTIFIANT UNIQUE", "Forme juridique",
-  "Capital social", "Adresse du siege social", "Date de publication", "NOM ET PRENOM".
-- La MEME structure : page 1 = identification, page 2 = direction + mentions, page 3 = mentions legales.
-- Le MEME pied de page : coordonnees du RNE (registre-entreprises.tn, +216 70 248 170, etc.).
+CONTEXTE
+Le RNE est emis par un organisme unique (Registre National des Entreprises) avec un template
+STANDARDISE. Tous les extraits partagent la meme structure, quels que soient la societe, la ville,
+le type de registre (SOCIETE ou ENTREPRISE INDIVIDUELLE). Tu peux te fier a la structure,
+PAS a des valeurs specifiques.
 
-Le document est bilingue francais/arabe. Utilise la version francaise quand elle existe,
-la version arabe UNIQUEMENT quand c'est la seule source (cas typique : nom du dirigeant).
+Le document est bilingue francais/arabe : les memes informations figurent dans les deux langues,
+cote a cote ou en colonnes paralleles. Utilise la version francaise quand elle existe ;
+l'arabe uniquement quand c'est la SEULE source (cas typique : nom du dirigeant en arabe).
 
-TYPES DE RNE POSSIBLES :
-- "EXTRAIT RNE (SOCIETE)" : a forme_juridique + capital + dirigeant.
-- "EXTRAIT RNE (ENTREPRISE INDIVIDUELLE)" : PAS de forme juridique, PAS de capital,
-  le "dirigeant" est l'exploitant lui-meme.
+STRUCTURE STANDARD (page 1 = identification, page 2 = direction + mentions, page 3 = mentions legales)
 
-PIEGES A EVITER ABSOLUMENT (valables pour TOUS les RNE) :
-1. "NUMERO EXTRAIT" (format ER + chiffres) n'est PAS le matricule fiscal.
-2. "N° DE GESTION INTERNE" (format B + chiffres) n'est PAS le matricule fiscal.
-3. "DATE D'EDITION DE L'EXTRAIT" n'est PAS la date de creation - c'est la date d'impression.
-4. L'adresse "N°1 Rue LAC TOBA les Berges du Lac 1 -1053- Tunis" est celle du RNE,
-   PAS celle de la societe. Elle apparait en pied de page de chaque page. IGNORE-LA.
-5. Ne concatene JAMAIS plusieurs adresses. Une seule valeur.
-6. Si plusieurs dirigeants, garde UNIQUEMENT le premier (gerant ou president) et ignore
-   les autres ainsi que les commissaires aux comptes.
-7. Si le nom du dirigeant est en arabe, translittere-le en caracteres latins.
+1. EN-TETE (en haut de chaque page) - A IGNORER ENTIEREMENT :
+   - Code de verification du registre (chaine alphanumerique isolee)
+   - QR code et image de sceau
+   - Lien de validation, coordonnees de l'organisme
+   - Blason "REPUBLIQUE TUNISIENNE / PRESIDENCE DU GOUVERNEMENT / RNE"
 
-Regles finales :
+2. BANDEAU D'EN-TETE (sous le blason) :
+   - "NUMERO EXTRAIT" / "عدد المضمون" : un identifiant qui commence souvent par un prefixe
+     alphabetique suivi de chiffres. Ce n'est PAS le matricule fiscal.
+   - "DATE D'EDITION DE L'EXTRAIT" / "تاريخ استخراج المضمون" : une date au format AAAA/MM/JJ.
+     Ce n'est PAS une date de creation de la societe.
+   - "IDENTIFIANT UNIQUE" / "المعرف الوحيد" : le matricule fiscal de la societe.
+     C'est cette valeur qu'on veut dans matricule_fiscal.
+
+3. TITRE : "EXTRAIT RNE (SOCIETE)" ou "EXTRAIT RNE (ENTREPRISE INDIVIDUELLE)".
+   Ce titre determine la nature juridique (voir plus bas).
+
+4. SECTION "IDENTIFICATION DE L'ENTREPRISE" / "تعريف المؤسسة" :
+   C'est le bloc principal, contient la majorite des champs metier.
+   Les libelles usuels (FR / AR) :
+   - "Type de registre" / "نوع السجل"
+   - "N° de gestion interne" / "عدد التصرف الداخلي"
+   - "Identifiant unique" / "المعرف الوحيد"       -> matricule_fiscal
+   - "Denomination sociale" / "الاسم الاجتماعي"   -> raison_sociale
+   - "Nom commercial" / "الاسم التجاري"           -> a IGNORER
+   - "Enseigne" / "الشارة"                        -> a IGNORER
+   - "Adresse du siege social" / "المقر الاجتماعي" -> adresse
+   - "Adresse Activite" / "عنوان النشاط"          -> a IGNORER (adresse d'exploitation, pas siege)
+   - "Forme juridique" / "الشكل القانوني"         -> forme_juridique
+   - "Capital social" / "رأس المال"               -> capital
+   - "Duree de l'entreprise" / "مدة الشركة"       -> a IGNORER
+   - "Date de publication" / "تاريخ الاشهار"      -> date_creation (fallback)
+
+5. SECTION "INFORMATIONS RELATIVES A L'ACTIVITE" / "بيانات تخص النشاط" :
+   Contient des details d'activite. A IGNORER pour notre extraction (sauf si tu veux
+   explicitement ce champ). Nous ne recuperons pas l'activite via le RNE.
+
+6. SECTION "INFORMATIONS RELATIVES A LA DIRECTION" / "بيانات تخص الادارة" :
+   Tableau a plusieurs colonnes : nom, nationalite, qualite.
+   Le "dirigeant" est la personne dont la qualite est gerant / president / directeur /
+   exploitant. IGNORE les commissaires aux comptes (section separee "COMMISSAIRE AUX COMPTES").
+
+7. PIED DE PAGE de chaque page : coordonnees postales de l'organisme RNE, telephones,
+   sites web, mentions legales longues. A IGNORER ENTIEREMENT.
+
+REGLES D'EXTRACTION PAR CHAMP
+
+- raison_sociale
+  * Cherche la valeur associee au libelle "Denomination sociale" (ou "الاسم الاجتماعي").
+  * Pour une ENTREPRISE INDIVIDUELLE, ce libelle peut etre remplace par "Nom et prenom".
+  * Peut etre :
+      - une personne morale (majuscules, parfois abregee)
+      - une personne physique (Prenom + Nom en casse normale)
+  * Recopie telle quelle, sans reformatage.
+
+- matricule_fiscal
+  * Cherche la valeur associee au libelle "IDENTIFIANT UNIQUE" (ou "المعرف الوحيد").
+    Ce libelle apparait DEUX fois dans le document :
+      - une fois dans le bandeau d'en-tete,
+      - une fois dans la section "IDENTIFICATION DE L'ENTREPRISE".
+    Les deux valeurs doivent etre identiques. Si elles diffèrent, prends celle
+    de la section identification (source principale).
+  * Format : chaine alphanumerique de longueur variable. Peut etre :
+      - 7 chiffres + 1 lettre majuscule
+      - 7 chiffres + "/" + 1 lettre + "/" + 1 lettre + "/" + 3 chiffres
+      - ou une autre variante. NE PRESUME PAS du format : recopie exactement.
+  * NE PAS confondre avec :
+      - "NUMERO EXTRAIT" (identifiant different, plus long, commence souvent par des lettres)
+      - "N° DE GESTION INTERNE" (identifiant interne, commence souvent par une lettre)
+      - "R.C" ou "RC" (numero de registre de commerce)
+      - Les codes alphanumeriques isoles dans l'en-tete
+
+- forme_juridique
+  * Cherche la valeur associee a "Forme juridique" (ou "الشكل القانوني").
+  * Le document peut donner la forme en toutes lettres (ex: "Societe a Responsabilite
+    Limitee (SARL)") ou directement en abreviation. Normalise en abreviation usuelle :
+      - "Societe a Responsabilite Limitee" ou "SARL"       -> "SARL"
+      - "Societe Anonyme" ou "SA"                          -> "SA"
+      - "Societe Unipersonnelle a Responsabilite Limitee"  -> "SUARL"
+      - "Societe en Nom Collectif" ou "SNC"                -> "SNC"
+      - "Societe en Commandite Simple" ou "SCS"            -> "SCS"
+      - "Societe par Actions Simplifiee" ou "SAS"          -> "SAS"
+      - "Societe en Commandite par Actions" ou "SCA"       -> "SCA"
+    Si la forme n'est pas dans cette liste, garde la valeur telle quelle.
+  * Pour une ENTREPRISE INDIVIDUELLE : mets null (pas de forme juridique).
+
+- capital
+  * Cherche la valeur associee a "Capital social" (ou "رأس المال").
+  * Extrait UNIQUEMENT le nombre (chiffres), sans devise, sans espaces, sans virgule
+    de milliers. Le document peut utiliser l'espace ou la virgule comme separateur,
+    enleve-les.
+  * Pour une ENTREPRISE INDIVIDUELLE : mets null.
+
+- date_creation
+  * Priorite 1 : si le document contient une date de constitution / immatriculation
+    explicite, utilise-la.
+  * Priorite 2 : utilise "Date de publication" (ou "تاريخ الاشهار").
+  * Format de sortie : AAAA-MM-JJ.
+  * NE JAMAIS utiliser la date d'edition de l'extrait (bandeau d'en-tete) : c'est la date
+    a laquelle le document a ete imprime, elle change a chaque generation.
+
+- dirigeant
+  * Cherche dans le tableau "INFORMATIONS RELATIVES A LA DIRECTION" (ou "بيانات تخص الادارة").
+  * Ce tableau a plusieurs colonnes ; la colonne nom peut etre a gauche ou a droite selon
+    la version arabe/francaise. Repere par le libelle "NOM ET PRENOM" / "الاسم واللقب".
+  * La colonne "QUALITE" / "الصفة" indique le role. Retiens la premiere personne dont la
+    qualite est gerant / president / directeur / exploitant.
+  * IGNORE les personnes listees dans la section "COMMISSAIRE AUX COMPTES" (section separee).
+  * Si le nom est ecrit uniquement en arabe, translittere-le en caracteres latins selon
+    la prononciation tunisienne usuelle. Si tu ne peux pas translitterer de facon
+    raisonnable, mets null.
+  * Si plusieurs dirigeants ont le meme role (ex: deux co-gerants), garde UNIQUEMENT le premier.
+
+- adresse
+  * Cherche la valeur associee a "Adresse du siege social" (ou "المقر الاجتماعي").
+  * Il existe PLUSIEURS adresses dans le document :
+      - l'adresse du siege social (a extraire)
+      - l'adresse d'activite (a IGNORER)
+      - l'adresse de l'organisme emetteur, repetee en pied de page de CHAQUE page (a IGNORER)
+  * Repere l'adresse de l'organisme emetteur : elle est TOUJOURS dans le pied de page,
+    souvent accompagnee de telephones, fax, site web, email. Elle mentionne un
+    emplacement administratif connu (un quartier administratif de la capitale) et ne
+    correspond JAMAIS a la societe concernee. IGNORE-LA systematiquement.
+  * Ne concatene JAMAIS plusieurs adresses en une seule valeur.
+  * Si l'adresse du siege s'etale sur plusieurs lignes dans le document, reconstitue-la
+    en une seule chaine, separee par des virgules.
+
+REGLES FINALES
 - Reponds uniquement selon le schema fourni.
-- N'invente jamais de valeur. Si tu n'es pas certain a 90%, mets null."""
+- N'invente jamais de valeur. Si tu n'es pas certain a 90%, mets null.
+- Preserve la casse et l'orthographe exacte des valeurs extraites."""
 
 
 def extract_invoice(pages: list[PageText]) -> InvoiceExtraction:

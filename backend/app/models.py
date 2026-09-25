@@ -22,6 +22,8 @@ class Company(Base):
     matricule_fiscal: Mapped[str | None]
     adresse: Mapped[str | None]
     forme_juridique: Mapped[str | None]
+    code_tva: Mapped[str | None]                
+    code_categorie: Mapped[str | None]          
     capital: Mapped[Decimal | None] = mapped_column(Numeric(14, 3))
     date_creation: Mapped[date | None] = mapped_column(Date)
     activite: Mapped[str | None]

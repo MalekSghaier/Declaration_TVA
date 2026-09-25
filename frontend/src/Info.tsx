@@ -7,7 +7,9 @@ interface CompanyInfo {
   matricule_fiscal: string | null;
   adresse: string | null;
   forme_juridique: string | null;
-  capital: string | number | null; // Decimal serialise en chaine par le backend
+  code_tva: string | null;          
+  code_categorie: string | null;    
+  capital: string | number | null; 
   date_creation: string | null;
   activite: string | null;
   dirigeant: string | null;
@@ -21,6 +23,8 @@ const FIELDS: { key: FieldKey; label: string }[] = [
   { key: "matricule_fiscal", label: "Matricule fiscal" },
   { key: "adresse", label: "Adresse" },
   { key: "forme_juridique", label: "Forme juridique" },
+  { key: "code_tva", label: "Code TVA" },
+  { key: "code_categorie", label: "Code catégorie" },
   { key: "capital", label: "Capital" },
   { key: "date_creation", label: "Date de création" },
   { key: "activite", label: "Activité" },
