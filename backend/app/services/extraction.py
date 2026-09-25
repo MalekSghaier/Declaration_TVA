@@ -25,24 +25,44 @@ def _client() -> Mistral:
     return _client_singleton
 
 
-# Les documents administratifs tunisiens (RNE, patente) sont bilingues francais/arabe,
-# avec le meme contenu repete dans les deux langues. Le texte arabe n'apporte rien pour
-# l'extraction (les champs qui nous interessent sont toujours donnes aussi en francais)
-# et il noie le LLM sous du texte inutile, ce qui degrade la qualite d'extraction.
-_ARABIC_RANGES = "\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF"
-_ARABIC_RE = re.compile(f"[{_ARABIC_RANGES}]")
+# ---------------------------------------------------------------------------
+# Nettoyage du texte avant envoi au LLM
+# ---------------------------------------------------------------------------
+# Les documents RNE sont emis par un organisme unique avec un pied de page
+# standardise qui revient sur CHAQUE page. Ce bruit pollue le LLM et peut etre
+# confondu avec les donnees metier (ex: adresse de l'organisme prise pour
+# l'adresse du siege). On le retire.
+#
+# IMPORTANT : on NE retire PAS l'arabe. Certaines donnees (ex: nom du dirigeant)
+# peuvent n'exister qu'en version arabe. Le LLM Mistral gere le bilingue.
+
+_NOISE_PATTERNS = [
+    # Coordonnees de l'organisme emetteur (RNE / structure fiscale)
+    r"registre-entreprises\.tn[^\s]*",
+    r"https?://\S+",
+    r"contact@registre-entreprises\.tn",
+    r"www\.registre-entreprises\.tn",
+    r"\+216[\s\d]+",
+    # Adresse du RNE en pied de page (version francaise et arabe)
+    r"N°1\s+Rue\s+LAC\s+TOBA[^\n]*",
+    r"صافي\s+1\s+عدد\s+LAC\s+TOBA[^\n]*",
+    # Lignes purement decoratives (QR codes vides, separateurs)
+    r"\[\s*\]\([^)]+\)",
+]
 
 
-def _strip_arabic(text: str) -> str:
-    cleaned = _ARABIC_RE.sub(" ", text)
-    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
-    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
-    return cleaned.strip()
+def _strip_noise(text: str) -> str:
+    for pat in _NOISE_PATTERNS:
+        text = re.sub(pat, " ", text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = re.sub(r"\n[ \t]+", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
 
 
 def pages_to_text(pages: list[PageText]) -> str:
     joined = "\n\n".join(f"--- Page {p.page + 1} ---\n{p.text}" for p in pages)
-    return _strip_arabic(joined)
+    return _strip_noise(joined)
 
 
 def _extract(pages: list[PageText], schema: type[BaseModel], system: str) -> BaseModel:
@@ -54,15 +74,16 @@ def _extract(pages: list[PageText], schema: type[BaseModel], system: str) -> Bas
         ],
         response_format=schema,
         temperature=0,
-        max_tokens=2000,
     )
-    choice = resp.choices[0]
-    if choice.finish_reason == "length":
-        raise ValueError(
-            "Reponse du LLM tronquee (limite de tokens atteinte) : augmentez max_tokens."
-        )
-    return choice.message.parsed
+    return resp.choices[0].message.parsed
 
+
+# ---------------------------------------------------------------------------
+# Prompts systeme
+# ---------------------------------------------------------------------------
+# Tous les RNE sont emis par le meme organisme, tous les patentes aussi.
+# On cible donc les libelles francais qui sont constants sur tous les documents,
+# ainsi que les pieges qui sont constants eux aussi.
 
 INVOICE_SYSTEM = """Tu extrais les donnees d'une facture tunisienne a partir de son texte (markdown).
 Regles :
@@ -74,33 +95,59 @@ Regles :
 - Une ligne dans lignes_tva par taux de TVA distinct.
 - Distingue bien l'emetteur (vendeur) du client."""
 
-PATENTE_SYSTEM = """Tu extrais les informations d'une patente tunisienne (carte d'identification fiscale)
-a partir de son texte. Le document original est bilingue francais/arabe ; le texte arabe a deja ete
-retire, tu ne recois que la partie francaise.
-Regles :
-- Reponds uniquement selon le schema fourni.
-- Cherche precisement les libelles suivants : "Matricule Fiscal", "Nom et prenom ou raison sociale",
-  "Adresse", "Activite principal".
-- Le matricule fiscal est recopie tel quel, avec ses lettres et chiffres (exemple : 1943273B).
-- N'extrait qu'une seule adresse : celle de l'entreprise elle-meme (celle indiquee a cote de "Adresse"),
-  jamais une adresse administrative appartenant a l'organisme emetteur du document.
-- Si une information est absente ou illisible, mets null. N'invente jamais de valeur."""
 
-RNE_SYSTEM = """Tu extrais les informations d'un extrait RNE (Registre National des Entreprises) tunisien
-a partir de son texte. Le document original est bilingue francais/arabe ; le texte arabe a deja ete
-retire, tu ne recois que la partie francaise.
-Regles :
+PATENTE_SYSTEM = """Tu extrais les informations d'une carte d'identification fiscale tunisienne (patente)
+a partir de son texte. La patente est emise par la Direction Generale des Impots avec un template
+standard. Le document est bilingue francais/arabe.
+
+Libelles francais presents sur toutes les patentes (cherche ces chaines exactes) :
+- "Matricule Fiscal"      -> matricule_fiscal
+- "Nom et prenom ou raison sociale" -> raison_sociale
+- "Adresse"               -> adresse
+- "Activite principal"    -> activite
+
+PIEGES :
+- "Code TVA", "Code Categorie", "N° etablissement secondaire" ne sont PAS le matricule fiscal.
+- Le champ "Nom et prenom ou raison sociale" peut etre VIDE sur certaines patentes (personne
+  physique dont le nom figure sur une autre ligne). Si tu ne trouves pas de valeur claire, mets null.
+- La patente comporte un cachet bleu (image) et des zones arabes. Ignore-les.
+- L'adresse figure sur 2-3 lignes consecutives : reconstitue-la en une seule chaine.
+
+Regles finales :
 - Reponds uniquement selon le schema fourni.
-- Cherche precisement les libelles suivants : "Denomination sociale", "Forme juridique", "Capital social",
-  "Identifiant unique" (c'est le matricule fiscal), "Adresse du siege social", "Date de publication".
-- capital : nombre uniquement, sans "DT" ni separateur de milliers (exemple : 150000).
-- date_creation : utilise la "Date de publication" au format AAAA-MM-JJ si aucune autre date n'est indiquee.
-- dirigeant : le nom de la personne indiquee dans le tableau "INFORMATIONS RELATIVES A LA DIRECTION".
-- adresse : utilise UNIQUEMENT la ligne "Adresse du siege social". Ignore toute autre adresse presente
-  dans le document, en particulier celle de l'organisme emetteur (Registre National des Entreprises,
-  ses coordonnees postales en en-tete ou pied de page de chaque page). Ne concatene jamais plusieurs
-  adresses : une seule valeur, ou null si aucune n'est clairement identifiable comme celle du siege social.
-- Si une information est absente ou illisible, mets null. N'invente jamais de valeur."""
+- N'invente jamais de valeur. Si tu n'es pas certain a 90%, mets null."""
+
+
+RNE_SYSTEM = """Tu extrais les informations d'un extrait RNE (Registre National des Entreprises) tunisien.
+
+Le RNE est emis par un organisme unique avec un template standard. Tous les extraits partagent :
+- Les MEMES libelles francais : "Denomination sociale", "IDENTIFIANT UNIQUE", "Forme juridique",
+  "Capital social", "Adresse du siege social", "Date de publication", "NOM ET PRENOM".
+- La MEME structure : page 1 = identification, page 2 = direction + mentions, page 3 = mentions legales.
+- Le MEME pied de page : coordonnees du RNE (registre-entreprises.tn, +216 70 248 170, etc.).
+
+Le document est bilingue francais/arabe. Utilise la version francaise quand elle existe,
+la version arabe UNIQUEMENT quand c'est la seule source (cas typique : nom du dirigeant).
+
+TYPES DE RNE POSSIBLES :
+- "EXTRAIT RNE (SOCIETE)" : a forme_juridique + capital + dirigeant.
+- "EXTRAIT RNE (ENTREPRISE INDIVIDUELLE)" : PAS de forme juridique, PAS de capital,
+  le "dirigeant" est l'exploitant lui-meme.
+
+PIEGES A EVITER ABSOLUMENT (valables pour TOUS les RNE) :
+1. "NUMERO EXTRAIT" (format ER + chiffres) n'est PAS le matricule fiscal.
+2. "N° DE GESTION INTERNE" (format B + chiffres) n'est PAS le matricule fiscal.
+3. "DATE D'EDITION DE L'EXTRAIT" n'est PAS la date de creation - c'est la date d'impression.
+4. L'adresse "N°1 Rue LAC TOBA les Berges du Lac 1 -1053- Tunis" est celle du RNE,
+   PAS celle de la societe. Elle apparait en pied de page de chaque page. IGNORE-LA.
+5. Ne concatene JAMAIS plusieurs adresses. Une seule valeur.
+6. Si plusieurs dirigeants, garde UNIQUEMENT le premier (gerant ou president) et ignore
+   les autres ainsi que les commissaires aux comptes.
+7. Si le nom du dirigeant est en arabe, translittere-le en caracteres latins.
+
+Regles finales :
+- Reponds uniquement selon le schema fourni.
+- N'invente jamais de valeur. Si tu n'es pas certain a 90%, mets null."""
 
 
 def extract_invoice(pages: list[PageText]) -> InvoiceExtraction:
@@ -108,8 +155,9 @@ def extract_invoice(pages: list[PageText]) -> InvoiceExtraction:
 
 
 def extract_patente(pages: list[PageText]) -> PatenteExtraction:
-    return _extract(pages[:2], PatenteExtraction, PATENTE_SYSTEM)  # 2 pages suffisent
+    return _extract(pages, PatenteExtraction, PATENTE_SYSTEM)
 
 
 def extract_rne(pages: list[PageText]) -> RNEExtraction:
-    return _extract(pages[:2], RNEExtraction, RNE_SYSTEM)  # page 3 = mentions légales, inutile
+    # Page 3 = mentions legales, on la garde si elle existe mais le LLM saura l'ignorer.
+    return _extract(pages, RNEExtraction, RNE_SYSTEM)
